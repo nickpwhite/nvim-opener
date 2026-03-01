@@ -38,10 +38,30 @@ test("parse code-insiders --goto path:line:col", () => {
 
 test("parse code-insiders no args as open-empty", () => {
   const parsed = parseCodeInsidersArgs([]);
-  assert.deepEqual(parsed, {
-    kind: "open-empty",
-    source: "code-insiders",
-  });
+  assert.equal(parsed.kind, "open-empty");
+  assert.equal(parsed.source, "code-insiders");
+  assert.equal(parsed.worktree, process.cwd());
+});
+
+test("parse code-insiders --file-uri file:// path", () => {
+  const parsed = parseCodeInsidersArgs([
+    "--file-uri",
+    "file:///Users/nick/.codex/worktrees/1234/repo/src/main.ts",
+  ]);
+
+  assert.equal(parsed.kind, "open-path");
+  assert.equal(parsed.path, "/Users/nick/.codex/worktrees/1234/repo/src/main.ts");
+  assert.equal(parsed.line, null);
+  assert.equal(parsed.col, null);
+});
+
+test("parse code-insiders positional file:// path", () => {
+  const parsed = parseCodeInsidersArgs([
+    "file:///Users/nick/.codex/worktrees/1234/repo/src/main.ts",
+  ]);
+
+  assert.equal(parsed.kind, "open-path");
+  assert.equal(parsed.path, "/Users/nick/.codex/worktrees/1234/repo/src/main.ts");
 });
 
 test("parse path with line and column", () => {

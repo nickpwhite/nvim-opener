@@ -7,6 +7,7 @@ import {
   spawnDetached,
   shellQuote,
   sleepMs,
+  resolveExecutable,
 } from "./shell.js";
 import {
   findWindowByWorktree,
@@ -21,21 +22,54 @@ function parseWindowIdentity(output) {
     throw new OpenerError("tmux did not return a window identity");
   }
 
-  const [windowIdRaw, windowIndexRaw] = trimmed.split("\t");
-  if (!windowIdRaw || !windowIndexRaw) {
-    throw new OpenerError("Invalid tmux window identity output", {
-      output: trimmed,
-    });
+  const splitParts = trimmed.split(/\s+/).filter(Boolean);
+  if (
+    splitParts.length >= 2 &&
+    /^@\d+$/.test(splitParts[0]) &&
+    /^\d+$/.test(splitParts[1])
+  ) {
+    return {
+      windowId: splitParts[0],
+      windowIndex: Number.parseInt(splitParts[1], 10),
+    };
   }
 
-  return {
-    windowId: windowIdRaw,
-    windowIndex: Number.parseInt(windowIndexRaw, 10),
-  };
+  const mixedFormat = /^(@\d+)[^\d]+(\d+)$/.exec(trimmed);
+  if (mixedFormat) {
+    return {
+      windowId: mixedFormat[1],
+      windowIndex: Number.parseInt(mixedFormat[2], 10),
+    };
+  }
+
+  const idOnly = /(@\d+)/.exec(trimmed);
+  if (idOnly) {
+    const idxLookup = tryCommand("tmux", [
+      "display-message",
+      "-p",
+      "-t",
+      idOnly[1],
+      "#{window_index}",
+    ]);
+
+    if (idxLookup.ok) {
+      const indexRaw = idxLookup.stdout.trim();
+      if (/^\d+$/.test(indexRaw)) {
+        return {
+          windowId: idOnly[1],
+          windowIndex: Number.parseInt(indexRaw, 10),
+        };
+      }
+    }
+  }
+
+  throw new OpenerError("Invalid tmux window identity output", {
+    output: trimmed,
+  });
 }
 
-function buildNvimCommand(worktree, socketPath) {
-  return `cd ${shellQuote(worktree)} && exec nvim --listen ${shellQuote(socketPath)}`;
+function buildNvimCommand(worktree, socketPath, nvimCommand) {
+  return `cd ${shellQuote(worktree)} && exec ${shellQuote(nvimCommand)} --listen ${shellQuote(socketPath)}`;
 }
 
 export function socketPathForWorktree(worktree, socketDir) {
@@ -91,7 +125,13 @@ function setWindowWorktree(windowId, worktree) {
   ]);
 }
 
-function createSessionWindow({ sessionName, worktree, windowName, socketPath }) {
+function createSessionWindow({
+  sessionName,
+  worktree,
+  windowName,
+  socketPath,
+  nvimCommand,
+}) {
   const create = runCommand("tmux", [
     "new-session",
     "-d",
@@ -104,7 +144,7 @@ function createSessionWindow({ sessionName, worktree, windowName, socketPath }) 
     windowName,
     "-c",
     worktree,
-    buildNvimCommand(worktree, socketPath),
+    buildNvimCommand(worktree, socketPath, nvimCommand),
   ]);
 
   const identity = parseWindowIdentity(create.stdout);
@@ -112,7 +152,13 @@ function createSessionWindow({ sessionName, worktree, windowName, socketPath }) 
   return identity;
 }
 
-function createAdditionalWindow({ sessionName, worktree, windowName, socketPath }) {
+function createAdditionalWindow({
+  sessionName,
+  worktree,
+  windowName,
+  socketPath,
+  nvimCommand,
+}) {
   const create = runCommand("tmux", [
     "new-window",
     "-d",
@@ -125,7 +171,7 @@ function createAdditionalWindow({ sessionName, worktree, windowName, socketPath 
     windowName,
     "-c",
     worktree,
-    buildNvimCommand(worktree, socketPath),
+    buildNvimCommand(worktree, socketPath, nvimCommand),
   ]);
 
   const identity = parseWindowIdentity(create.stdout);
@@ -139,21 +185,53 @@ function listPanes(windowId) {
     "-t",
     windowId,
     "-F",
-    "#{pane_id}\t#{pane_index}\t#{pane_current_path}",
+    "#{pane_id}\u001f#{pane_index}\u001f#{pane_current_path}",
   ]);
+
+  const parsePaneLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const unitSepParts = trimmed.split("\u001f");
+    if (
+      unitSepParts.length >= 3 &&
+      /^%\d+$/.test(unitSepParts[0]) &&
+      /^\d+$/.test(unitSepParts[1])
+    ) {
+      return {
+        paneId: unitSepParts[0],
+        paneIndex: Number.parseInt(unitSepParts[1], 10),
+        panePath: unitSepParts.slice(2).join("\u001f"),
+      };
+    }
+
+    const tabParts = trimmed.split("\t");
+    if (tabParts.length >= 3 && /^%\d+$/.test(tabParts[0]) && /^\d+$/.test(tabParts[1])) {
+      return {
+        paneId: tabParts[0],
+        paneIndex: Number.parseInt(tabParts[1], 10),
+        panePath: tabParts.slice(2).join("\t"),
+      };
+    }
+
+    const compact = /^(%\d+)[_ ](\d+)[_ ](.+)$/.exec(trimmed);
+    if (compact) {
+      return {
+        paneId: compact[1],
+        paneIndex: Number.parseInt(compact[2], 10),
+        panePath: compact[3],
+      };
+    }
+
+    return null;
+  };
 
   return output.stdout
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [paneId, paneIndexRaw, panePath] = line.split("\t");
-      return {
-        paneId,
-        paneIndex: Number.parseInt(paneIndexRaw, 10),
-        panePath,
-      };
-    })
+    .map(parsePaneLine)
+    .filter((row) => row !== null)
     .sort((a, b) => a.paneIndex - b.paneIndex);
 }
 
@@ -178,7 +256,7 @@ function normalizeWindowLayout(windowId, worktree) {
   }
 }
 
-export function ensureWindow({ sessionName, worktree, socketPath }) {
+export function ensureWindow({ sessionName, worktree, socketPath, nvimCommand }) {
   const sessionExists = hasSession(sessionName);
   let sessionCreated = false;
   let window = findWindowForWorktree(sessionName, worktree);
@@ -190,6 +268,7 @@ export function ensureWindow({ sessionName, worktree, socketPath }) {
       worktree,
       windowName: windowNameForWorktree(worktree),
       socketPath,
+      nvimCommand,
     });
   } else if (!window) {
     window = createAdditionalWindow({
@@ -197,6 +276,7 @@ export function ensureWindow({ sessionName, worktree, socketPath }) {
       worktree,
       windowName: windowNameForWorktree(worktree),
       socketPath,
+      nvimCommand,
     });
   }
 
@@ -239,7 +319,8 @@ export function hasAlacrittyClient(sessionName) {
 }
 
 export function launchAlacritty(alacrittyCmd, sessionName) {
-  spawnDetached(alacrittyCmd, ["-e", "tmux", "attach-session", "-t", sessionName]);
+  const tmuxCommand = resolveExecutable("tmux");
+  spawnDetached(alacrittyCmd, ["-e", tmuxCommand, "attach-session", "-t", sessionName]);
 }
 
 function nvimServerResponsive(socketPath) {
@@ -247,7 +328,7 @@ function nvimServerResponsive(socketPath) {
   return check.ok;
 }
 
-export function ensureNvimServer(windowId, worktree, socketPath) {
+export function ensureNvimServer(windowId, worktree, socketPath, nvimCommand) {
   if (nvimServerResponsive(socketPath)) {
     return;
   }
@@ -257,7 +338,7 @@ export function ensureNvimServer(windowId, worktree, socketPath) {
     "send-keys",
     "-t",
     `${windowId}.0`,
-    buildNvimCommand(worktree, socketPath),
+    buildNvimCommand(worktree, socketPath, nvimCommand),
     "C-m",
   ]);
 

@@ -1,8 +1,56 @@
 import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { CommandError } from "./errors.js";
 
+const FALLBACK_BIN_DIRS = [
+  "/opt/homebrew/bin",
+  "/usr/local/bin",
+  path.join(process.env.HOME || "", ".local/bin"),
+].filter(Boolean);
+
+function isExecutable(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveCommand(command) {
+  if (command.includes("/")) {
+    return command;
+  }
+
+  for (const dir of FALLBACK_BIN_DIRS) {
+    const candidate = path.join(dir, command);
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  const whichResult = spawnSync("/usr/bin/which", [command], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (whichResult.status === 0) {
+    const resolved = (whichResult.stdout || "").trim().split("\n")[0];
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return command;
+}
+
+export function resolveExecutable(command) {
+  return resolveCommand(command);
+}
+
 export function runCommand(command, args = [], options = {}) {
-  const result = spawnSync(command, args, {
+  const resolvedCommand = resolveCommand(command);
+  const result = spawnSync(resolvedCommand, args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     ...options,
@@ -11,14 +59,14 @@ export function runCommand(command, args = [], options = {}) {
   if (result.error) {
     throw new CommandError(`Failed to run ${command}`, {
       cause: result.error,
-      command,
+      command: resolvedCommand,
       args,
     });
   }
 
   if (result.status !== 0) {
     throw new CommandError(`Command failed: ${command}`, {
-      command,
+      command: resolvedCommand,
       args,
       status: result.status,
       stdout: result.stdout || "",
@@ -33,7 +81,8 @@ export function runCommand(command, args = [], options = {}) {
 }
 
 export function tryCommand(command, args = [], options = {}) {
-  const result = spawnSync(command, args, {
+  const resolvedCommand = resolveCommand(command);
+  const result = spawnSync(resolvedCommand, args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     ...options,
@@ -58,7 +107,8 @@ export function tryCommand(command, args = [], options = {}) {
 }
 
 export function spawnDetached(command, args = [], options = {}) {
-  const child = spawn(command, args, {
+  const resolvedCommand = resolveCommand(command);
+  const child = spawn(resolvedCommand, args, {
     detached: true,
     stdio: "ignore",
     ...options,
@@ -67,11 +117,7 @@ export function spawnDetached(command, args = [], options = {}) {
 }
 
 export function commandExists(command) {
-  const result = spawnSync("which", [command], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  return result.status === 0;
+  return isExecutable(resolveCommand(command));
 }
 
 export function sleepMs(ms) {

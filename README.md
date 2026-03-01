@@ -70,6 +70,9 @@ nvim-opener --from-code-insiders --goto "/Users/nick/.codex/worktrees/1234/repo/
 - `NVIM_OPENER_SOCKET_DIR` (default `/tmp/nvim-opener-sockets`)
 - `NVIM_OPENER_DEBUG=1` (JSON debug logs)
 - `NVIM_OPENER_VSCODE_INSIDERS_APP_ROOT` (default `~/Applications/Visual Studio Code - Insiders.app`)
+- `NVIM_OPENER_NODE_BIN` (optional absolute path to `node`, useful for GUI app PATH issues)
+- `NVIM_OPENER_BOOTSTRAP_SHELL` (default `$SHELL`; `bash`/`zsh` relaunch via login shell and source `.bashrc`/`.zshrc`)
+- `NVIM_OPENER_DISABLE_BOOTSTRAP=1` (disable shell bootstrap if you want raw environment behavior)
 
 ## Uninstall
 

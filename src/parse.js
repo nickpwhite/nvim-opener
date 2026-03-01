@@ -80,6 +80,36 @@ export function parseVsCodeInsidersUri(uriText) {
   };
 }
 
+function decodeFileUriPath(uriText) {
+  try {
+    const uri = new URL(uriText);
+    if (uri.protocol !== "file:") {
+      return null;
+    }
+
+    return decodeURIComponent(uri.pathname || "");
+  } catch {
+    return null;
+  }
+}
+
+function normalizePathLikeArg(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  if (value.startsWith("vscode-insiders://")) {
+    return value;
+  }
+
+  const decodedFileUri = decodeFileUriPath(value);
+  if (decodedFileUri) {
+    return decodedFileUri;
+  }
+
+  return value;
+}
+
 function findNextValue(args, index, flag) {
   const next = args[index + 1];
   if (!next || next.startsWith("-")) {
@@ -116,7 +146,7 @@ export function parseCodeInsidersArgs(rawArgs) {
       if (uriValue.startsWith("vscode-insiders://")) {
         return parseVsCodeInsidersUri(uriValue);
       }
-      pathSpec = uriValue;
+      pathSpec = normalizePathLikeArg(uriValue);
       i += 1;
       continue;
     }
@@ -126,7 +156,7 @@ export function parseCodeInsidersArgs(rawArgs) {
     }
 
     if (!pathSpec) {
-      pathSpec = arg;
+      pathSpec = normalizePathLikeArg(arg);
     }
   }
 
@@ -135,10 +165,15 @@ export function parseCodeInsidersArgs(rawArgs) {
     return {
       kind: "open-empty",
       source: "code-insiders",
+      worktree: process.cwd(),
     };
   }
 
-  const parsedPath = parsePathWithLineCol(selected);
+  if (selected.startsWith("vscode-insiders://")) {
+    return parseVsCodeInsidersUri(selected);
+  }
+
+  const parsedPath = parsePathWithLineCol(normalizePathLikeArg(selected));
   return {
     kind: "open-path",
     source: "code-insiders",

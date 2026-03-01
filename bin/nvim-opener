@@ -1,5 +1,74 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec node "$SCRIPT_DIR/../src/cli.js" "$@"
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+bootstrap_shell_environment() {
+  if [[ "${NVIM_OPENER_DISABLE_BOOTSTRAP:-0}" == "1" ]]; then
+    return
+  fi
+
+  if [[ "${NVIM_OPENER_BOOTSTRAPPED_ENV:-0}" == "1" ]]; then
+    return
+  fi
+
+  local bootstrap_shell="${NVIM_OPENER_BOOTSTRAP_SHELL:-${SHELL:-/bin/zsh}}"
+  if [[ ! -x "$bootstrap_shell" ]]; then
+    return
+  fi
+
+  local shell_name
+  shell_name="$(basename "$bootstrap_shell")"
+  case "$shell_name" in
+    bash)
+      export NVIM_OPENER_BOOTSTRAPPED_ENV=1
+      exec "$bootstrap_shell" -lc 'if [[ -f "$HOME/.bashrc" ]]; then . "$HOME/.bashrc" >/dev/null 2>&1 || true; fi; exec "$0" "$@"' "$SOURCE" "$@"
+      ;;
+    zsh)
+      export NVIM_OPENER_BOOTSTRAPPED_ENV=1
+      exec "$bootstrap_shell" -lc 'if [[ -f "$HOME/.zshrc" ]]; then . "$HOME/.zshrc" >/dev/null 2>&1 || true; fi; exec "$0" "$@"' "$SOURCE" "$@"
+      ;;
+  esac
+}
+
+bootstrap_shell_environment "$@"
+
+find_node() {
+  if [[ -n "${NVIM_OPENER_NODE_BIN:-}" && -x "${NVIM_OPENER_NODE_BIN}" ]]; then
+    printf '%s\n' "${NVIM_OPENER_NODE_BIN}"
+    return
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return
+  fi
+
+  local candidate
+  for candidate in \
+    /opt/homebrew/bin/node \
+    /usr/local/bin/node \
+    /usr/bin/node \
+    "$HOME/.nvm/versions/node/current/bin/node"
+  do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+
+  return 1
+}
+
+if ! NODE_BIN="$(find_node)"; then
+  echo "nvim-opener: unable to find Node.js runtime. Set NVIM_OPENER_NODE_BIN to an absolute node path." >&2
+  exit 1
+fi
+
+exec "$NODE_BIN" "$SCRIPT_DIR/../src/cli.js" "$@"
