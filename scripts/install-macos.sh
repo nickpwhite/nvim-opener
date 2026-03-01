@@ -5,6 +5,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${NVIM_OPENER_BIN_DIR:-$HOME/.local/bin}"
 APP_DIR="${NVIM_OPENER_APP_DIR:-$HOME/Applications}"
 APP_PATH="$APP_DIR/NvimOpenerURLHandler.app"
+VSCODE_INSIDERS_APP_ROOT="${NVIM_OPENER_VSCODE_INSIDERS_APP_ROOT:-$HOME/Applications/Visual Studio Code - Insiders.app}"
+VSCODE_INSIDERS_CODE_PATH="$VSCODE_INSIDERS_APP_ROOT/Contents/Resources/app/bin/code"
 BUNDLE_ID="com.nick.nvimopener.urlhandler"
 PLIST_BUDDY="/usr/libexec/PlistBuddy"
 TEMPLATE="$REPO_ROOT/macos/vscode-insiders-url-handler.applescript"
@@ -13,6 +15,34 @@ mkdir -p "$BIN_DIR" "$APP_DIR"
 
 ln -sf "$REPO_ROOT/bin/nvim-opener" "$BIN_DIR/nvim-opener"
 ln -sf "$REPO_ROOT/bin/code-insiders" "$BIN_DIR/code-insiders"
+
+install_vscode_insiders_detection_shim() {
+  local source_shim="$BIN_DIR/code-insiders"
+  local target="$VSCODE_INSIDERS_CODE_PATH"
+  local target_dir
+  target_dir="$(dirname "$target")"
+
+  mkdir -p "$target_dir"
+
+  if [[ -e "$target" && ! -L "$target" ]]; then
+    echo "Skipped VS Code Insiders detection shim (target exists and is not a symlink): $target"
+    return
+  fi
+
+  if [[ -L "$target" ]]; then
+    local current_target
+    current_target="$(readlink "$target" || true)"
+    if [[ "$current_target" != "$source_shim" && "$current_target" != "$REPO_ROOT/bin/code-insiders" ]]; then
+      echo "Skipped VS Code Insiders detection shim (symlink points elsewhere): $target -> $current_target"
+      return
+    fi
+  fi
+
+  ln -sfn "$source_shim" "$target"
+  echo "Installed VS Code Insiders detection shim: $target -> $source_shim"
+}
+
+install_vscode_insiders_detection_shim
 
 TMP_SCRIPT="$(mktemp)"
 cleanup() {
@@ -61,5 +91,6 @@ killall cfprefsd >/dev/null 2>&1 || true
 
 echo "Installed nvim-opener shims to: $BIN_DIR"
 echo "Installed URL handler app: $APP_PATH"
+echo "Installed VS Code Insiders detection path: $VSCODE_INSIDERS_CODE_PATH"
 echo "Configured vscode-insiders:// handler bundle id: $BUNDLE_ID"
 echo "If '$BIN_DIR' is not in PATH, add it before /opt/homebrew/bin so code-insiders resolves to this shim."

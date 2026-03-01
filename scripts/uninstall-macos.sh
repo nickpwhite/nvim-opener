@@ -1,13 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${NVIM_OPENER_BIN_DIR:-$HOME/.local/bin}"
 APP_DIR="${NVIM_OPENER_APP_DIR:-$HOME/Applications}"
 APP_PATH="$APP_DIR/NvimOpenerURLHandler.app"
+VSCODE_INSIDERS_APP_ROOT="${NVIM_OPENER_VSCODE_INSIDERS_APP_ROOT:-$HOME/Applications/Visual Studio Code - Insiders.app}"
+VSCODE_INSIDERS_CODE_PATH="$VSCODE_INSIDERS_APP_ROOT/Contents/Resources/app/bin/code"
+
+remove_dir_if_empty() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return
+  rmdir "$dir" >/dev/null 2>&1 || true
+}
 
 rm -f "$BIN_DIR/nvim-opener" "$BIN_DIR/code-insiders"
 rm -rf "$APP_PATH"
 
+if [[ -L "$VSCODE_INSIDERS_CODE_PATH" ]]; then
+  local_symlink_target="$(readlink "$VSCODE_INSIDERS_CODE_PATH" || true)"
+  if [[ "$local_symlink_target" == "$BIN_DIR/code-insiders" || "$local_symlink_target" == "$REPO_ROOT/bin/code-insiders" ]]; then
+    rm -f "$VSCODE_INSIDERS_CODE_PATH"
+    remove_dir_if_empty "$(dirname "$VSCODE_INSIDERS_CODE_PATH")"
+    remove_dir_if_empty "$VSCODE_INSIDERS_APP_ROOT/Contents/Resources/app"
+    remove_dir_if_empty "$VSCODE_INSIDERS_APP_ROOT/Contents/Resources"
+    remove_dir_if_empty "$VSCODE_INSIDERS_APP_ROOT/Contents"
+    remove_dir_if_empty "$VSCODE_INSIDERS_APP_ROOT"
+  fi
+fi
+
 echo "Removed shims from: $BIN_DIR"
 echo "Removed URL handler app: $APP_PATH"
+echo "Removed VS Code Insiders detection shim if owned: $VSCODE_INSIDERS_CODE_PATH"
 echo "If needed, reassign vscode-insiders:// to VS Code Insiders manually."

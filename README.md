@@ -20,7 +20,7 @@ Routes Codex "Open in editor" actions (configured to use VS Code Insiders) into 
 - `nvim` (with `--server` support)
 - `alacritty`
 - Node.js 20+
-- VS Code Insiders installed and selected in Codex "Open in" settings
+- Codex "Open in" set to `VS Code Insiders`
 
 ## Install
 
@@ -30,6 +30,14 @@ Routes Codex "Open in editor" actions (configured to use VS Code Insiders) into 
 ```bash
 ./scripts/install-macos.sh
 ```
+
+This installer also creates a safe detection shim at:
+
+`~/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code`
+
+pointing to this project's `code-insiders` wrapper, so Codex Desktop can detect `VS Code Insiders` without requiring a real Insiders app install.
+
+If that path already exists and is not owned by this tool, it is left unchanged.
 
 3. Ensure your shell `PATH` puts `~/.local/bin` before Homebrew bin paths so `code-insiders` resolves to the shim:
 
@@ -61,6 +69,7 @@ nvim-opener --from-code-insiders --goto "/Users/nick/.codex/worktrees/1234/repo/
 - `NVIM_OPENER_ALACRITTY_CMD` (default `alacritty`)
 - `NVIM_OPENER_SOCKET_DIR` (default `/tmp/nvim-opener-sockets`)
 - `NVIM_OPENER_DEBUG=1` (JSON debug logs)
+- `NVIM_OPENER_VSCODE_INSIDERS_APP_ROOT` (default `~/Applications/Visual Studio Code - Insiders.app`)
 
 ## Uninstall
 

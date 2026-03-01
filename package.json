@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "install": "./scripts/install-macos.sh",
+    "uninstall": "./scripts/uninstall-macos.sh"
   },
   "engines": {
     "node": ">=20"
