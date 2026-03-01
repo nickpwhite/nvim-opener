@@ -1,11 +1,13 @@
 import os from "node:os";
 import path from "node:path";
+import fs from "node:fs";
 import { commandExists, resolveExecutable } from "./shell.js";
 import { OpenerError } from "./errors.js";
 import {
   ensureNvimServer,
   ensureSocketDir,
   ensureWindow,
+  focusAlacritty,
   getMostRecentManagedWorktree,
   hasAlacrittyClient,
   launchAlacritty,
@@ -85,6 +87,7 @@ export function executeOpenAction(action, config, logger) {
   ensureDependencies(config);
   ensureSocketDir(config.socketDir);
   const nvimCommand = resolveExecutable("nvim");
+  const alacrittyCmd = resolveAlacrittyCommand(config);
 
   const worktree = resolveTargetWorktree(action, config);
   const socketPath = socketPathForWorktree(worktree, config.socketDir);
@@ -97,7 +100,6 @@ export function executeOpenAction(action, config, logger) {
   });
 
   if (shouldOpenAlacritty(sessionCreated, config)) {
-    const alacrittyCmd = resolveAlacrittyCommand(config);
     logger.debug("Launching Alacritty attach", {
       session: config.sessionName,
       alacritty: alacrittyCmd,
@@ -110,16 +112,27 @@ export function executeOpenAction(action, config, logger) {
   ensureNvimServer(window.windowId, worktree, socketPath, nvimCommand);
   setServerCwd(socketPath, worktree);
 
+  let openedPath = null;
   if (action.kind === "open-path") {
     const absolutePath = resolveAbsolutePath(action.path);
-    openFileInServer(socketPath, absolutePath, action.line, action.col);
+    try {
+      if (fs.statSync(absolutePath).isFile()) {
+        openFileInServer(socketPath, absolutePath, action.line, action.col);
+        openedPath = absolutePath;
+      }
+    } catch {
+      openFileInServer(socketPath, absolutePath, action.line, action.col);
+      openedPath = absolutePath;
+    }
   }
+
+  focusAlacritty(alacrittyCmd);
 
   logger.info("Open handled", {
     source: action.source,
     kind: action.kind,
     worktree,
     windowId: window.windowId,
-    path: action.kind === "open-path" ? action.path : null,
+    path: openedPath,
   });
 }

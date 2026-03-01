@@ -20,6 +20,19 @@ test("parse tmux window rows", () => {
   assert.equal(rows[1].active, true);
 });
 
+test("parse tmux window rows in compact underscore format", () => {
+  const rows = parseWindowRows(
+    ["@1_0_/Users/nick/.codex/worktrees/49b2/circleback_1710000000_1"].join("\n"),
+  );
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].windowId, "@1");
+  assert.equal(rows[0].windowIndex, 0);
+  assert.equal(rows[0].worktree, "/Users/nick/.codex/worktrees/49b2/circleback");
+  assert.equal(rows[0].activity, 1710000000);
+  assert.equal(rows[0].active, true);
+});
+
 test("find window by worktree", () => {
   const rows = parseWindowRows(
     ["@2\t1\t/Users/nick/.codex/worktrees/8780/circleback\t1710000010\t1"].join("\n"),

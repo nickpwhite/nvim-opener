@@ -93,7 +93,7 @@ export function listManagedWindows(sessionName) {
     "-t",
     sessionName,
     "-F",
-    "#{window_id}\t#{window_index}\t#{@codex_worktree}\t#{window_activity}\t#{window_active}",
+    "#{window_id}\u001f#{window_index}\u001f#{@codex_worktree}\u001f#{window_activity}\u001f#{window_active}",
   ]);
 
   if (!result.ok) {
@@ -321,6 +321,29 @@ export function hasAlacrittyClient(sessionName) {
 export function launchAlacritty(alacrittyCmd, sessionName) {
   const tmuxCommand = resolveExecutable("tmux");
   spawnDetached(alacrittyCmd, ["-e", tmuxCommand, "attach-session", "-t", sessionName]);
+}
+
+function alacrittyAppName(alacrittyCmd) {
+  if (alacrittyCmd.includes(".app")) {
+    const match = /\/([^/]+)\.app(?:\/|$)/.exec(alacrittyCmd);
+    if (match) {
+      return match[1];
+    }
+  }
+  return "Alacritty";
+}
+
+export function focusAlacritty(alacrittyCmd) {
+  const appName = alacrittyAppName(alacrittyCmd);
+  const activate = tryCommand("osascript", [
+    "-e",
+    `tell application "${appName}" to activate`,
+  ]);
+  if (activate.ok) {
+    return;
+  }
+
+  tryCommand("open", ["-a", appName]);
 }
 
 function nvimServerResponsive(socketPath) {
