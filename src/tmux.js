@@ -77,9 +77,54 @@ export function socketPathForWorktree(worktree, socketDir) {
   return path.join(socketDir, `${hash}.sock`);
 }
 
+function sanitizeWindowName(value) {
+  const sanitized = String(value || "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized || "worktree";
+}
+
+function resolveGitBranch(worktree) {
+  const symbolic = tryCommand("git", [
+    "-C",
+    worktree,
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "HEAD",
+  ]);
+  if (symbolic.ok) {
+    const branch = symbolic.stdout.trim();
+    if (branch) {
+      return branch;
+    }
+  }
+
+  const abbrev = tryCommand("git", ["-C", worktree, "rev-parse", "--abbrev-ref", "HEAD"]);
+  if (abbrev.ok) {
+    const branch = abbrev.stdout.trim();
+    if (branch && branch !== "HEAD") {
+      return branch;
+    }
+  }
+
+  return null;
+}
+
 export function windowNameForWorktree(worktree) {
-  const base = path.basename(worktree).replace(/[^a-zA-Z0-9._-]+/g, "-") || "worktree";
-  return `${base}-${shortHash(worktree, 6)}`;
+  const repoName = sanitizeWindowName(path.basename(worktree));
+  const branch = resolveGitBranch(worktree);
+
+  if (!branch) {
+    return `${repoName}-${shortHash(worktree, 6)}`;
+  }
+
+  const branchName = sanitizeWindowName(branch);
+  if (branchName === "main") {
+    return `${repoName}-main`;
+  }
+
+  return branchName;
 }
 
 export function hasSession(sessionName) {
@@ -125,6 +170,15 @@ function setWindowWorktree(windowId, worktree) {
   ]);
 }
 
+function setWindowName(windowId, windowName) {
+  runCommand("tmux", [
+    "rename-window",
+    "-t",
+    windowId,
+    windowName,
+  ]);
+}
+
 function createSessionWindow({
   sessionName,
   worktree,
@@ -149,6 +203,7 @@ function createSessionWindow({
 
   const identity = parseWindowIdentity(create.stdout);
   setWindowWorktree(identity.windowId, worktree);
+  setWindowName(identity.windowId, windowName);
   return identity;
 }
 
@@ -176,6 +231,7 @@ function createAdditionalWindow({
 
   const identity = parseWindowIdentity(create.stdout);
   setWindowWorktree(identity.windowId, worktree);
+  setWindowName(identity.windowId, windowName);
   return identity;
 }
 
@@ -259,6 +315,7 @@ function normalizeWindowLayout(windowId, worktree) {
 export function ensureWindow({ sessionName, worktree, socketPath, nvimCommand }) {
   const sessionExists = hasSession(sessionName);
   let sessionCreated = false;
+  const targetWindowName = windowNameForWorktree(worktree);
   let window = findWindowForWorktree(sessionName, worktree);
 
   if (!sessionExists) {
@@ -266,7 +323,7 @@ export function ensureWindow({ sessionName, worktree, socketPath, nvimCommand })
     window = createSessionWindow({
       sessionName,
       worktree,
-      windowName: windowNameForWorktree(worktree),
+      windowName: targetWindowName,
       socketPath,
       nvimCommand,
     });
@@ -274,7 +331,7 @@ export function ensureWindow({ sessionName, worktree, socketPath, nvimCommand })
     window = createAdditionalWindow({
       sessionName,
       worktree,
-      windowName: windowNameForWorktree(worktree),
+      windowName: targetWindowName,
       socketPath,
       nvimCommand,
     });
@@ -287,6 +344,7 @@ export function ensureWindow({ sessionName, worktree, socketPath, nvimCommand })
     });
   }
 
+  setWindowName(window.windowId, targetWindowName);
   normalizeWindowLayout(window.windowId, worktree);
 
   return {
