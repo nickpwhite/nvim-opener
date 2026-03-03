@@ -6,7 +6,11 @@ import {
   parseCliArgs,
   parseCodeInsidersArgs,
 } from "./parse.js";
-import { executeOpenAction } from "./opener.js";
+import {
+  executeArchiveCleanupAction,
+  executeOpenAction,
+  executeSyncArchivesAction,
+} from "./opener.js";
 import { OpenerError, CommandError } from "./errors.js";
 
 function toAction(parsed) {
@@ -29,6 +33,16 @@ function main() {
     }
 
     const action = toAction(parsed);
+    if (action.kind === "archive-worktree") {
+      executeArchiveCleanupAction(action, config, logger);
+      return;
+    }
+
+    if (action.kind === "sync-archives") {
+      executeSyncArchivesAction(action, config, logger);
+      return;
+    }
+
     executeOpenAction(action, config, logger);
   } catch (error) {
     if (error instanceof OpenerError || error instanceof CommandError) {

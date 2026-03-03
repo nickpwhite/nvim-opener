@@ -153,6 +153,43 @@ export function findWindowForWorktree(sessionName, worktree) {
   return findWindowByWorktree(windows, worktree);
 }
 
+export function cleanupWindowForWorktree(sessionName, worktree) {
+  const window = findWindowForWorktree(sessionName, worktree);
+  if (!window) {
+    return {
+      cleaned: false,
+      reason: "window-not-found",
+    };
+  }
+
+  const kill = tryCommand("tmux", ["kill-window", "-t", window.windowId]);
+  if (!kill.ok) {
+    const retryWindow = findWindowForWorktree(sessionName, worktree);
+    if (!retryWindow) {
+      return {
+        cleaned: true,
+        windowId: window.windowId,
+        raced: true,
+      };
+    }
+
+    throw new OpenerError("Failed to close tmux window for worktree", {
+      sessionName,
+      worktree,
+      windowId: window.windowId,
+      status: kill.status,
+      stdout: kill.stdout,
+      stderr: kill.stderr,
+    });
+  }
+
+  return {
+    cleaned: true,
+    windowId: window.windowId,
+    raced: false,
+  };
+}
+
 export function getMostRecentManagedWorktree(sessionName) {
   const windows = listManagedWindows(sessionName);
   const selected = pickMostRecentManagedWindow(windows);

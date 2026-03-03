@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.nick.nvim-opener.archive-sync</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NVIM_OPENER_BIN__</string>
+    <string>--sync-archives</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>15</integer>
+
+  <key>StandardOutPath</key>
+  <string>__ARCHIVE_SYNC_LOG_PATH__</string>
+
+  <key>StandardErrorPath</key>
+  <string>__ARCHIVE_SYNC_ERR_LOG_PATH__</string>
+</dict>
+</plist>

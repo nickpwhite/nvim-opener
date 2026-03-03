@@ -3,7 +3,9 @@ import path from "node:path";
 import fs from "node:fs";
 import { commandExists, resolveExecutable } from "./shell.js";
 import { OpenerError } from "./errors.js";
+import { syncArchivedWorktrees } from "./archive-sync.js";
 import {
+  cleanupWindowForWorktree,
   ensureNvimServer,
   ensureSocketDir,
   ensureWindow,
@@ -83,6 +85,32 @@ function shouldOpenAlacritty(sessionCreated, config) {
   return !hasAlacrittyClient(config.sessionName);
 }
 
+function cleanupWorktreeState(inputWorktree, config) {
+  const worktree = resolveWorktreeFromPath(inputWorktree);
+  const socketPath = socketPathForWorktree(worktree, config.socketDir);
+  const windowCleanup = cleanupWindowForWorktree(config.sessionName, worktree);
+
+  const socketExisted = fs.existsSync(socketPath);
+  try {
+    fs.rmSync(socketPath, {
+      force: true,
+    });
+  } catch (error) {
+    throw new OpenerError("Failed to remove nvim socket for archived worktree", {
+      worktree,
+      socketPath,
+      cause: error,
+    });
+  }
+
+  return {
+    worktree,
+    socketPath,
+    socketRemoved: socketExisted,
+    windowCleanup,
+  };
+}
+
 export function executeOpenAction(action, config, logger) {
   ensureDependencies(config);
   ensureSocketDir(config.socketDir);
@@ -134,5 +162,44 @@ export function executeOpenAction(action, config, logger) {
     worktree,
     windowId: window.windowId,
     path: openedPath,
+  });
+}
+
+export function executeArchiveCleanupAction(action, config, logger) {
+  ensureDependencies(config);
+
+  const cleanup = cleanupWorktreeState(action.worktree, config);
+  logger.info("Archive cleanup handled", {
+    source: action.source,
+    kind: action.kind,
+    worktree: cleanup.worktree,
+    socketPath: cleanup.socketPath,
+    socketRemoved: cleanup.socketRemoved,
+    windowCleaned: cleanup.windowCleanup.cleaned,
+    windowId: cleanup.windowCleanup.windowId || null,
+    raceHandled: cleanup.windowCleanup.raced || false,
+    reason: cleanup.windowCleanup.reason || null,
+  });
+}
+
+export function executeSyncArchivesAction(action, config, logger) {
+  ensureDependencies(config);
+
+  const summary = syncArchivedWorktrees({
+    logger,
+    cleanupWorktree: (worktree) => cleanupWorktreeState(worktree, config),
+  });
+
+  logger.info("Archive sync handled", {
+    source: action.source,
+    kind: action.kind,
+    archiveDir: summary.archiveDir,
+    statePath: summary.statePath,
+    scannedFiles: summary.scannedFiles,
+    processedFiles: summary.processedFiles,
+    queuedWorktrees: summary.queuedWorktrees,
+    cleanedWorktrees: summary.cleanedWorktrees,
+    failedWorktrees: summary.failedWorktrees,
+    skippedWorktrees: summary.skippedWorktrees,
   });
 }
