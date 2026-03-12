@@ -6,18 +6,18 @@ BIN_DIR="${NVIM_OPENER_BIN_DIR:-$HOME/.local/bin}"
 APP_DIR="${NVIM_OPENER_APP_DIR:-$HOME/Applications}"
 APP_PATH="$APP_DIR/NvimOpenerURLHandler.app"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
-ARCHIVE_SYNC_LABEL="com.nick.nvim-opener.archive-sync"
-ARCHIVE_SYNC_PLIST="$LAUNCH_AGENTS_DIR/$ARCHIVE_SYNC_LABEL.plist"
-ARCHIVE_SYNC_TEMPLATE="$REPO_ROOT/macos/com.nick.nvim-opener.archive-sync.plist"
-ARCHIVE_SYNC_LOG_PATH="$HOME/Library/Logs/nvim-opener-archive-sync.log"
-ARCHIVE_SYNC_ERR_LOG_PATH="$HOME/Library/Logs/nvim-opener-archive-sync.err.log"
+THREAD_SYNC_LABEL="com.nick.nvim-opener.thread-sync"
+THREAD_SYNC_PLIST="$LAUNCH_AGENTS_DIR/$THREAD_SYNC_LABEL.plist"
+THREAD_SYNC_TEMPLATE="$REPO_ROOT/macos/com.nick.nvim-opener.thread-sync.plist"
+THREAD_SYNC_LOG_PATH="$HOME/Library/Logs/nvim-opener-thread-sync.log"
+THREAD_SYNC_ERR_LOG_PATH="$HOME/Library/Logs/nvim-opener-thread-sync.err.log"
 VSCODE_INSIDERS_APP_ROOT="${NVIM_OPENER_VSCODE_INSIDERS_APP_ROOT:-$HOME/Applications/Visual Studio Code - Insiders.app}"
 VSCODE_INSIDERS_CODE_PATH="$VSCODE_INSIDERS_APP_ROOT/Contents/Resources/app/bin/code"
 BUNDLE_ID="com.nick.nvimopener.urlhandler"
 PLIST_BUDDY="/usr/libexec/PlistBuddy"
 TEMPLATE="$REPO_ROOT/macos/vscode-insiders-url-handler.applescript"
 
-mkdir -p "$BIN_DIR" "$APP_DIR" "$LAUNCH_AGENTS_DIR" "$(dirname "$ARCHIVE_SYNC_LOG_PATH")"
+mkdir -p "$BIN_DIR" "$APP_DIR" "$LAUNCH_AGENTS_DIR" "$(dirname "$THREAD_SYNC_LOG_PATH")"
 
 ln -sf "$REPO_ROOT/bin/nvim-opener" "$BIN_DIR/nvim-opener"
 ln -sf "$REPO_ROOT/bin/code-insiders" "$BIN_DIR/code-insiders"
@@ -96,27 +96,27 @@ fi
 
 killall cfprefsd >/dev/null 2>&1 || true
 
-escaped_archive_log_path="$(printf '%s' "$ARCHIVE_SYNC_LOG_PATH" | sed -e 's/[\\&]/\\\\&/g')"
-escaped_archive_err_log_path="$(printf '%s' "$ARCHIVE_SYNC_ERR_LOG_PATH" | sed -e 's/[\\&]/\\\\&/g')"
+escaped_thread_log_path="$(printf '%s' "$THREAD_SYNC_LOG_PATH" | sed -e 's/[\\&]/\\\\&/g')"
+escaped_thread_err_log_path="$(printf '%s' "$THREAD_SYNC_ERR_LOG_PATH" | sed -e 's/[\\&]/\\\\&/g')"
 sed \
   -e "s#__NVIM_OPENER_BIN__#$escaped_bin_path#g" \
-  -e "s#__ARCHIVE_SYNC_LOG_PATH__#$escaped_archive_log_path#g" \
-  -e "s#__ARCHIVE_SYNC_ERR_LOG_PATH__#$escaped_archive_err_log_path#g" \
-  "$ARCHIVE_SYNC_TEMPLATE" > "$TMP_LAUNCH_AGENT"
-cp "$TMP_LAUNCH_AGENT" "$ARCHIVE_SYNC_PLIST"
+  -e "s#__THREAD_SYNC_LOG_PATH__#$escaped_thread_log_path#g" \
+  -e "s#__THREAD_SYNC_ERR_LOG_PATH__#$escaped_thread_err_log_path#g" \
+  "$THREAD_SYNC_TEMPLATE" > "$TMP_LAUNCH_AGENT"
+cp "$TMP_LAUNCH_AGENT" "$THREAD_SYNC_PLIST"
 
 LAUNCH_DOMAIN="gui/$(id -u)"
-launchctl bootout "$LAUNCH_DOMAIN/$ARCHIVE_SYNC_LABEL" >/dev/null 2>&1 || true
-if ! launchctl bootstrap "$LAUNCH_DOMAIN" "$ARCHIVE_SYNC_PLIST" >/dev/null 2>&1; then
-  launchctl load -w "$ARCHIVE_SYNC_PLIST" >/dev/null 2>&1 || true
+launchctl bootout "$LAUNCH_DOMAIN/$THREAD_SYNC_LABEL" >/dev/null 2>&1 || true
+if ! launchctl bootstrap "$LAUNCH_DOMAIN" "$THREAD_SYNC_PLIST" >/dev/null 2>&1; then
+  launchctl load -w "$THREAD_SYNC_PLIST" >/dev/null 2>&1 || true
 fi
-launchctl enable "$LAUNCH_DOMAIN/$ARCHIVE_SYNC_LABEL" >/dev/null 2>&1 || true
-launchctl kickstart -k "$LAUNCH_DOMAIN/$ARCHIVE_SYNC_LABEL" >/dev/null 2>&1 || true
+launchctl enable "$LAUNCH_DOMAIN/$THREAD_SYNC_LABEL" >/dev/null 2>&1 || true
+launchctl kickstart -k "$LAUNCH_DOMAIN/$THREAD_SYNC_LABEL" >/dev/null 2>&1 || true
 
 echo "Installed nvim-opener shims to: $BIN_DIR"
 echo "Installed URL handler app: $APP_PATH"
 echo "Installed VS Code Insiders detection path: $VSCODE_INSIDERS_CODE_PATH"
-echo "Installed archive sync launch agent: $ARCHIVE_SYNC_PLIST"
-echo "Archive sync logs: $ARCHIVE_SYNC_LOG_PATH (stderr: $ARCHIVE_SYNC_ERR_LOG_PATH)"
+echo "Installed thread sync launch agent: $THREAD_SYNC_PLIST"
+echo "Thread sync logs: $THREAD_SYNC_LOG_PATH (stderr: $THREAD_SYNC_ERR_LOG_PATH)"
 echo "Configured vscode-insiders:// handler bundle id: $BUNDLE_ID"
 echo "If '$BIN_DIR' is not in PATH, add it before /opt/homebrew/bin so code-insiders resolves to this shim."

@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { commandExists, resolveExecutable } from "./shell.js";
 import { OpenerError } from "./errors.js";
-import { syncArchivedWorktrees } from "./archive-sync.js";
+import { syncManagedWorktreesWithThreadState } from "./thread-sync.js";
 import {
   cleanupWindowForWorktree,
   ensureNvimServer,
@@ -12,6 +12,7 @@ import {
   focusAlacritty,
   getMostRecentManagedWorktree,
   hasAlacrittyClient,
+  listManagedWindows,
   launchAlacritty,
   openFileInServer,
   setServerCwd,
@@ -165,41 +166,26 @@ export function executeOpenAction(action, config, logger) {
   });
 }
 
-export function executeArchiveCleanupAction(action, config, logger) {
+export function executeSyncThreadStateAction(action, config, logger) {
   ensureDependencies(config);
 
-  const cleanup = cleanupWorktreeState(action.worktree, config);
-  logger.info("Archive cleanup handled", {
-    source: action.source,
-    kind: action.kind,
-    worktree: cleanup.worktree,
-    socketPath: cleanup.socketPath,
-    socketRemoved: cleanup.socketRemoved,
-    windowCleaned: cleanup.windowCleanup.cleaned,
-    windowId: cleanup.windowCleanup.windowId || null,
-    raceHandled: cleanup.windowCleanup.raced || false,
-    reason: cleanup.windowCleanup.reason || null,
-  });
-}
-
-export function executeSyncArchivesAction(action, config, logger) {
-  ensureDependencies(config);
-
-  const summary = syncArchivedWorktrees({
+  const summary = syncManagedWorktreesWithThreadState({
     logger,
+    listManagedWorktrees: () =>
+      listManagedWindows(config.sessionName)
+        .map((window) => window.worktree)
+        .filter(Boolean),
     cleanupWorktree: (worktree) => cleanupWorktreeState(worktree, config),
   });
 
-  logger.info("Archive sync handled", {
+  logger.info("Thread state sync handled", {
     source: action.source,
     kind: action.kind,
-    archiveDir: summary.archiveDir,
-    statePath: summary.statePath,
-    scannedFiles: summary.scannedFiles,
-    processedFiles: summary.processedFiles,
-    queuedWorktrees: summary.queuedWorktrees,
+    activeThreadStateAvailable: summary.activeThreadStateAvailable,
+    activeWorktrees: summary.activeWorktrees,
+    managedWorktrees: summary.managedWorktrees,
+    orphanedWorktrees: summary.orphanedWorktrees,
     cleanedWorktrees: summary.cleanedWorktrees,
     failedWorktrees: summary.failedWorktrees,
-    skippedWorktrees: summary.skippedWorktrees,
   });
 }

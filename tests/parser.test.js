@@ -101,40 +101,15 @@ test("parse cli --from-code-insiders passthrough", () => {
   assert.deepEqual(parsed.args, ["--goto", "/tmp/a.ts:5:1"]);
 });
 
-test("parse cli --archive-worktree", () => {
-  const parsed = parseCliArgs(["--archive-worktree", "/tmp/worktree"]);
-  assert.equal(parsed.kind, "archive-worktree");
-  assert.equal(parsed.source, "cli");
-  assert.equal(parsed.worktree, "/tmp/worktree");
-});
-
-test("parse cli --sync-archives", () => {
-  const parsed = parseCliArgs(["--sync-archives"]);
-  assert.equal(parsed.kind, "sync-archives");
+test("parse cli --sync-thread-state", () => {
+  const parsed = parseCliArgs(["--sync-thread-state"]);
+  assert.equal(parsed.kind, "sync-thread-state");
   assert.equal(parsed.source, "cli");
 });
 
-test("parse cli archive conflicts with open args", () => {
+test("parse cli sync-thread-state must be standalone", () => {
   assert.throws(
-    () => parseCliArgs(["--archive-worktree", "/tmp/worktree", "--path", "/tmp/a.ts"]),
-    /Cannot combine --archive-worktree/,
+    () => parseCliArgs(["--sync-thread-state", "--path", "/tmp/a.ts"]),
+    /--sync-thread-state must be used without other arguments/,
   );
-});
-
-test("parse cli sync-archives must be standalone", () => {
-  assert.throws(
-    () => parseCliArgs(["--sync-archives", "--path", "/tmp/a.ts"]),
-    /--sync-archives must be used without other arguments/,
-  );
-});
-
-test("parse code-insiders --archive-worktree", () => {
-  const parsed = parseCodeInsidersArgs([
-    "--archive-worktree",
-    "/Users/nick/.codex/worktrees/1234/repo",
-  ]);
-
-  assert.equal(parsed.kind, "archive-worktree");
-  assert.equal(parsed.source, "code-insiders");
-  assert.equal(parsed.worktree, "/Users/nick/.codex/worktrees/1234/repo");
 });
