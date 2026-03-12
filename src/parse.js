@@ -122,27 +122,12 @@ export function parseCodeInsidersArgs(rawArgs) {
   const args = [...rawArgs];
   let gotoSpec = null;
   let pathSpec = null;
-  let archiveWorktree = null;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
 
     if (arg.startsWith("vscode-insiders://")) {
-      if (archiveWorktree) {
-        throw new OpenerError("Cannot combine --archive-worktree with open path arguments");
-      }
       return parseVsCodeInsidersUri(arg);
-    }
-
-    if (arg === "--archive-worktree") {
-      archiveWorktree = findNextValue(args, i, arg);
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith("--archive-worktree=")) {
-      archiveWorktree = arg.slice("--archive-worktree=".length);
-      continue;
     }
 
     if (arg === "--goto" || arg === "-g") {
@@ -159,9 +144,6 @@ export function parseCodeInsidersArgs(rawArgs) {
     if (arg === "--file-uri" || arg === "--folder-uri") {
       const uriValue = findNextValue(args, i, arg);
       if (uriValue.startsWith("vscode-insiders://")) {
-        if (archiveWorktree) {
-          throw new OpenerError("Cannot combine --archive-worktree with open path arguments");
-        }
         return parseVsCodeInsidersUri(uriValue);
       }
       pathSpec = normalizePathLikeArg(uriValue);
@@ -176,17 +158,6 @@ export function parseCodeInsidersArgs(rawArgs) {
     if (!pathSpec) {
       pathSpec = normalizePathLikeArg(arg);
     }
-  }
-
-  if (archiveWorktree) {
-    if (gotoSpec || pathSpec) {
-      throw new OpenerError("Cannot combine --archive-worktree with open path arguments");
-    }
-    return {
-      kind: "archive-worktree",
-      source: "code-insiders",
-      worktree: normalizePathLikeArg(archiveWorktree),
-    };
   }
 
   const selected = gotoSpec || pathSpec;
@@ -222,8 +193,7 @@ export function parseCliArgs(argv) {
     col: null,
     openEmpty: false,
     worktree: null,
-    archiveWorktree: null,
-    syncArchives: false,
+    syncThreadState: false,
     fromCodeInsiders: null,
   };
 
@@ -265,19 +235,8 @@ export function parseCliArgs(argv) {
       continue;
     }
 
-    if (arg === "--archive-worktree") {
-      state.archiveWorktree = findNextValue(args, i, arg);
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith("--archive-worktree=")) {
-      state.archiveWorktree = arg.slice("--archive-worktree=".length);
-      continue;
-    }
-
-    if (arg === "--sync-archives") {
-      state.syncArchives = true;
+    if (arg === "--sync-thread-state") {
+      state.syncThreadState = true;
       continue;
     }
 
@@ -299,26 +258,14 @@ export function parseCliArgs(argv) {
     state.uri || state.path || state.openEmpty || state.worktree || state.line || state.col,
   );
 
-  if (state.syncArchives) {
-    if (state.archiveWorktree || hasOpenFlags || state.fromCodeInsiders) {
-      throw new OpenerError("--sync-archives must be used without other arguments");
-    }
-
-    return {
-      kind: "sync-archives",
-      source: "cli",
-    };
-  }
-
-  if (state.archiveWorktree) {
+  if (state.syncThreadState) {
     if (hasOpenFlags || state.fromCodeInsiders) {
-      throw new OpenerError("Cannot combine --archive-worktree with open path arguments");
+      throw new OpenerError("--sync-thread-state must be used without other arguments");
     }
 
     return {
-      kind: "archive-worktree",
+      kind: "sync-thread-state",
       source: "cli",
-      worktree: state.archiveWorktree,
     };
   }
 
@@ -373,8 +320,7 @@ export function formatHelp() {
     "  nvim-opener --uri <vscode-insiders://...>",
     "  nvim-opener --path <path> [--line N] [--col N]",
     "  nvim-opener --open-empty [--worktree <path>]",
-    "  nvim-opener --archive-worktree <path>",
-    "  nvim-opener --sync-archives",
+    "  nvim-opener --sync-thread-state",
     "  nvim-opener --from-code-insiders <raw-args...>",
   ].join("\n");
 }

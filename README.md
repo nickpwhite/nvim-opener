@@ -12,7 +12,7 @@ Routes Codex "Open in editor" actions (configured to use VS Code Insiders) into 
 - Opens files in the Neovim instance for the matching worktree.
 - Handles "Open" (no file path) by focusing existing editor for the most recent managed worktree.
 - Creates session/windows/editors on demand.
-- Cleans up tmux + socket state for archived Codex worktrees.
+- Reconciles tmux windows against active Codex threads and cleans up orphaned worktrees.
 
 ## Requirements
 
@@ -53,30 +53,24 @@ nvim-opener --uri "vscode-insiders://file/Users/nick/.codex/worktrees/1234/repo/
 nvim-opener --path "/Users/nick/.codex/worktrees/1234/repo/src/a.ts" --line 14 --col 2
 nvim-opener --open-empty
 nvim-opener --open-empty --worktree "/Users/nick/.codex/worktrees/1234/repo"
-nvim-opener --archive-worktree "/Users/nick/.codex/worktrees/1234/repo"
-nvim-opener --sync-archives
+nvim-opener --sync-thread-state
 nvim-opener --from-code-insiders --goto "/Users/nick/.codex/worktrees/1234/repo/src/a.ts:14:2"
 ```
 
-## Archive Cleanup
+## Thread State Cleanup
 
-- `--archive-worktree <path>`:
-  - Resolves the worktree root.
-  - Closes the managed tmux window for that worktree.
-  - Removes the worktree nvim socket.
-  - Does not focus Alacritty/terminal.
-- `--sync-archives`:
-  - Scans `~/.codex/archived_sessions/rollout-*.jsonl`.
-  - Reads first-line `session_meta.payload.cwd`.
-  - Cleans only worktrees under `~/.codex/worktrees`.
-  - Stores checkpoint state at `~/.codex/tmp/nvim-opener-archive-sync-state.json`.
+- `--sync-thread-state`:
+  - Reads non-archived Codex threads from `~/.codex/state_5.sqlite`.
+  - Compares active thread `cwd` values to managed tmux worktrees.
+  - Closes managed tmux windows whose worktree no longer has any active Codex thread.
+  - Removes the matching worktree nvim socket when cleanup runs.
 
-The macOS installer sets up a LaunchAgent (`com.nick.nvim-opener.archive-sync`) that runs `--sync-archives` every 15 seconds (`RunAtLoad=true`).
+The macOS installer sets up a LaunchAgent (`com.nick.nvim-opener.thread-sync`) that runs `--sync-thread-state` every 15 seconds (`RunAtLoad=true`).
 
 LaunchAgent logs:
 
-- `~/Library/Logs/nvim-opener-archive-sync.log`
-- `~/Library/Logs/nvim-opener-archive-sync.err.log`
+- `~/Library/Logs/nvim-opener-thread-sync.log`
+- `~/Library/Logs/nvim-opener-thread-sync.err.log`
 
 ## Worktree Resolution Rules
 

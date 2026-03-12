@@ -7,9 +7,8 @@ import {
   parseCodeInsidersArgs,
 } from "./parse.js";
 import {
-  executeArchiveCleanupAction,
   executeOpenAction,
-  executeSyncArchivesAction,
+  executeSyncThreadStateAction,
 } from "./opener.js";
 import { OpenerError, CommandError } from "./errors.js";
 
@@ -33,13 +32,8 @@ function main() {
     }
 
     const action = toAction(parsed);
-    if (action.kind === "archive-worktree") {
-      executeArchiveCleanupAction(action, config, logger);
-      return;
-    }
-
-    if (action.kind === "sync-archives") {
-      executeSyncArchivesAction(action, config, logger);
+    if (action.kind === "sync-thread-state") {
+      executeSyncThreadStateAction(action, config, logger);
       return;
     }
 
