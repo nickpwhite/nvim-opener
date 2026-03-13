@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { OpenerError } from "./errors.js";
 
 function parsePositiveInt(value, fieldName) {
@@ -52,8 +54,8 @@ export function parseVsCodeInsidersUri(uriText) {
     });
   }
 
-  const decodedPath = decodeURIComponent(uri.pathname || "");
-  if (!decodedPath || decodedPath === "/") {
+  const decodedPath = decodeUriPathname(uri.pathname);
+  if (!decodedPath) {
     return {
       kind: "open-empty",
       source: "uri",
@@ -80,6 +82,21 @@ export function parseVsCodeInsidersUri(uriText) {
   };
 }
 
+function decodeUriPathname(pathname) {
+  if (!pathname || pathname === "/") {
+    return "";
+  }
+
+  try {
+    return fileURLToPath(`file://${pathname}`);
+  } catch (error) {
+    throw new OpenerError("Invalid file path in URI", {
+      pathname,
+      cause: error,
+    });
+  }
+}
+
 function decodeFileUriPath(uriText) {
   try {
     const uri = new URL(uriText);
@@ -87,7 +104,7 @@ function decodeFileUriPath(uriText) {
       return null;
     }
 
-    return decodeURIComponent(uri.pathname || "");
+    return decodeUriPathname(uri.pathname);
   } catch {
     return null;
   }

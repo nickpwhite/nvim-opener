@@ -23,6 +23,17 @@ test("parse vscode-insiders URI with encoded spaces and line/col", () => {
   assert.equal(parsed.col, 3);
 });
 
+test("parse vscode-insiders URI with encoded square brackets", () => {
+  const parsed = parseVsCodeInsidersUri(
+    "vscode-insiders://file/Users/nick/project/src/routes/%5Bslug%5D.tsx:12:3",
+  );
+
+  assert.equal(parsed.kind, "open-path");
+  assert.equal(parsed.path, "/Users/nick/project/src/routes/[slug].tsx");
+  assert.equal(parsed.line, 12);
+  assert.equal(parsed.col, 3);
+});
+
 test("parse code-insiders --goto path:line:col", () => {
   const parsed = parseCodeInsidersArgs([
     "--reuse-window",
@@ -51,6 +62,18 @@ test("parse code-insiders --file-uri file:// path", () => {
 
   assert.equal(parsed.kind, "open-path");
   assert.equal(parsed.path, "/Users/nick/.codex/worktrees/1234/repo/src/main.ts");
+  assert.equal(parsed.line, null);
+  assert.equal(parsed.col, null);
+});
+
+test("parse code-insiders --file-uri with encoded square brackets", () => {
+  const parsed = parseCodeInsidersArgs([
+    "--file-uri",
+    "file:///Users/nick/project/src/routes/%5Bslug%5D.tsx",
+  ]);
+
+  assert.equal(parsed.kind, "open-path");
+  assert.equal(parsed.path, "/Users/nick/project/src/routes/[slug].tsx");
   assert.equal(parsed.line, null);
   assert.equal(parsed.col, null);
 });
